@@ -1,0 +1,20 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+body { width: 1600px; height: 1000px; padding: 90px 110px; }
+h2 { font-size: 52px; font-weight: 700; letter-spacing: -.02em; margin: 18px 0 50px; }
+.list { display: grid; gap: 18px; }
+.s { display: grid; grid-template-columns: 300px 1fr; align-items: center; gap: 36px; padding: 22px 28px; border-radius: 14px; background: #15161a; border: 1px solid #23262c; }
+.s .bar { border: 1px solid #2a2d34; background: #1b1d22; border-radius: 8px; height: 46px; justify-content: flex-end; font-size: 18px; }
+.s .item { font-size: 19px; } .s .zap { width: 16px; height: 16px; }
+.t { font-size: 24px; color: #c9ccd2; line-height: 1.35; } .t small { display: block; font-size: 18px; color: #7d818a; margin-top: 4px; }
+</style></head><body>
+<div class="eyebrow">Orcaffein · status bar</div>
+<h2>What the status bar tells you</h2>
+<div class="list">
+  <div class="s"><div class="bar"><span class="item g"><svg class="zap" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg> Awake 3</span></div><div class="t">3 agents are working. The Mac stays awake with the lid closed.</div></div>
+  <div class="s"><div class="bar"><span class="item a"><svg class="zap" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg> Idle 12/60m</span></div><div class="t">Agents finished 12 minutes ago.<small>At 60 the Mac can sleep again. If the lid is closed, it sleeps right away.</small></div></div>
+  <div class="s"><div class="bar"><span class="item n">✓ Sleep</span></div><div class="t">Normal sleep: no agents, on battery, or mode set to Off.</div></div>
+  <div class="s"><div class="bar"><span class="item n">❚❚ Paused</span></div><div class="t">You paused it. Click to resume.</div></div>
+  <div class="s"><div class="bar"><span class="item r">⚠ Setup</span></div><div class="t">One-time setup needed.<small>Click it and enter your Mac password.</small></div></div>
+</div>
+</body></html>

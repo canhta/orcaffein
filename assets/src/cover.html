@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+body { width: 1600px; height: 1000px; position: relative;
+  background: radial-gradient(900px 700px at 85% 30%, #13202a 0%, transparent 70%), radial-gradient(700px 500px at 0% 100%, #1c1510 0%, transparent 70%), #0e0f12; }
+.left { position: absolute; left: 80px; top: 250px; width: 600px; }
+h1 { font-size: 108px; font-weight: 700; letter-spacing: -.035em; margin: 20px 0 24px; }
+.lead { font-size: 29px; line-height: 1.42; color: #b4b8c0; }
+.chips { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 42px; }
+.win { position: absolute; right: 70px; top: 150px; width: 800px; height: 640px; border-radius: 14px; overflow: hidden; border: 1px solid #272a31; background: #121317; box-shadow: 0 40px 100px rgba(0,0,0,.55); display: grid; grid-template-rows: 38px 1fr 40px; }
+.top { display: flex; align-items: center; gap: 8px; padding: 0 16px; background: #17181c; border-bottom: 1px solid #23262c; }
+.top i { width: 11px; height: 11px; border-radius: 50%; background: #3a3d44; display: block; }
+.mid { display: grid; grid-template-columns: 210px 1fr; }
+.side { border-right: 1px solid #202329; padding: 22px 18px; display: grid; align-content: start; gap: 16px; }
+.side div { height: 10px; border-radius: 5px; background: #1e2026; }
+.main { padding: 28px 30px; display: grid; align-content: start; gap: 18px; }
+.agent { display: flex; align-items: center; gap: 12px; font-size: 18px; color: #c9ccd2; padding: 14px 16px; border-radius: 10px; background: #17191e; border: 1px solid #22252b; }
+.agent .dot { width: 10px; height: 10px; background: #3ecf7a; box-shadow: 0 0 0 4px rgba(62,207,122,.15); }
+.agent em { margin-left: auto; font-style: normal; font-size: 15px; color: #3ecf7a; }
+.line { height: 10px; border-radius: 5px; background: #1c1e23; }
+.win .bar { height: 40px; font-size: 15px; }
+.hl { padding: 5px 12px; border-radius: 8px; background: rgba(62,207,122,.12); outline: 1px solid rgba(62,207,122,.5); font-size: 15px; }
+.float { position: absolute; right: 120px; top: 812px; display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; background: #16191d; border: 1px solid #2b2f36; font-size: 18px; color: #c9ccd2; box-shadow: 0 20px 50px rgba(0,0,0,.5); }
+.float b { color: #3ecf7a; font-weight: 600; }
+</style></head><body>
+<div class="left">
+  <div class="eyebrow">Orca plugin · macOS</div>
+  <h1>Orcaffein</h1>
+  <p class="lead">Close the lid. Your Orca agents keep working, and the Mac sleeps again when they're done.</p>
+  <div class="chips">
+    <span class="chip"><span class="dot" style="background:#3ecf7a"></span>Awake while agents work</span>
+    <span class="chip"><span class="dot" style="background:#7aa7ff"></span>Sleeps when they finish</span>
+    <span class="chip"><span class="dot" style="background:#f2b85b"></span>Sleeps on battery</span>
+  </div>
+</div>
+<div class="win">
+  <div class="top"><i></i><i></i><i></i></div>
+  <div class="mid">
+    <div class="side"><div style="width:80%"></div><div style="width:60%"></div><div style="width:70%"></div><div style="width:50%"></div><div style="width:65%"></div></div>
+    <div class="main">
+      <div class="agent"><span class="dot"></span>claude · fix-login-flow<em>working</em></div>
+      <div class="agent"><span class="dot"></span>codex · migrate-db<em>working</em></div>
+      <div class="agent"><span class="dot"></span>claude · write-tests<em>working</em></div>
+      <div class="line" style="width:72%;margin-top:10px"></div><div class="line" style="width:55%"></div><div class="line" style="width:64%"></div>
+    </div>
+  </div>
+  <div class="bar"><span>main</span><span style="flex:1"></span><span class="item hl g"><svg class="zap" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg> Awake 3</span></div>
+</div>
+<div class="float">Lid closed, on charger: <b>still working</b></div>
+<div class="foot">Sample data. Not affiliated with Stably or Orca.</div>
+</body></html>

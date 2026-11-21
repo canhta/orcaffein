@@ -1,0 +1,115 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "id": "orcaffein",
+  "name": "Orcaffein",
+  "version": "0.1.1",
+  "description": "Keeps your MacBook awake with the lid closed while Orca agents work. macOS only.",
+  "author": {
+    "name": "canhta",
+    "url": "https://github.com/canhta"
+  },
+  "repository": "https://github.com/canhta/orcaffein",
+  "homepage": "https://github.com/canhta/orcaffein",
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "Orcaffein: an Orca window with three agents working and the status bar showing Awake 3, while the lid is closed and the Mac is on charger"
+  },
+  "screenshots": [
+    {
+      "path": "assets/states.png",
+      "alt": "The five status bar states: Awake 3, Idle 12/60m, Sleep, Paused and Setup, each with what it means",
+      "caption": "What the status bar tells you"
+    }
+  ],
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "capabilities": [
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "agent:read"
+    }
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "toggle-pause",
+        "title": "Orcaffein: Pause or resume"
+      },
+      {
+        "id": "check-setup",
+        "title": "Orcaffein: Check setup"
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "state",
+        "text": "Orcaffein",
+        "icon": "zap",
+        "tone": "neutral",
+        "tooltip": "Starting",
+        "command": "toggle-pause"
+      }
+    ],
+    "events": [
+      {
+        "on": "agent.status.changed"
+      }
+    ],
+    "settings": [
+      {
+        "key": "mode",
+        "title": "Mode",
+        "description": "Agent: awake while agents work. On: awake whenever on power. Off: do nothing.",
+        "type": "string",
+        "default": "agent",
+        "enum": ["agent", "on", "off"],
+        "enumLabels": ["Agent", "On", "Off"]
+      },
+      {
+        "key": "idleMinutes",
+        "title": "Idle minutes",
+        "description": "How long to stay awake after the last agent stops.",
+        "type": "integer",
+        "default": 60,
+        "minimum": 1,
+        "maximum": 1440
+      },
+      {
+        "key": "pollSeconds",
+        "title": "Poll interval (seconds)",
+        "description": "How often to check agents, power and the lid.",
+        "type": "integer",
+        "default": 60,
+        "minimum": 15,
+        "maximum": 600
+      },
+      {
+        "key": "allowOnBattery",
+        "title": "Allow on battery",
+        "description": "Stay awake when unplugged.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "orcaCliPath",
+        "title": "Orca CLI path",
+        "description": "Used to count working agents.",
+        "type": "string",
+        "default": "/Applications/Orca.app/Contents/Resources/bin/orca",
+        "maxLength": 1024
+      }
+    ]
+  }
+}
