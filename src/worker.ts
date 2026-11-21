@@ -11,6 +11,9 @@ const DEFAULT_CLI = '/Applications/Orca.app/Contents/Resources/bin/orca'
 // Let a watchdog left by a crashed worker fire before this one takes over.
 const START_DELAY_MS = 3_000
 const EVENT_DEBOUNCE_MS = 1_500
+// While the Mac is held awake: how often to look at the lid, so the screen goes off soon after
+// it closes. ioreg takes ~15 ms.
+const LID_CHECK_MS = 10_000
 
 // Orca's IPC channel keeps the worker alive; timers must not (tests would never exit).
 function unref(timer: unknown): void {
@@ -21,9 +24,17 @@ export type WorkerOptions = {
   system: System
   now?: () => number
   startDelayMs?: number
+  eventDebounceMs?: number
+  lidCheckMs?: number
 }
 
-export function createWorker({ system, now = Date.now, startDelayMs = START_DELAY_MS }: WorkerOptions) {
+export function createWorker({
+  system,
+  now = Date.now,
+  startDelayMs = START_DELAY_MS,
+  eventDebounceMs = EVENT_DEBOUNCE_MS,
+  lidCheckMs = LID_CHECK_MS
+}: WorkerOptions) {
   let orca: OrcaWorkerApi | null = null
   let pollTimer: ReturnType<typeof setInterval> | null = null
   let pendingTimer: ReturnType<typeof setTimeout> | null = null
@@ -34,12 +45,25 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
   let pollSeconds = 60
   let last: Decision | null = null
   let lastLogged = ''
+  // Only while the Mac is held awake: a power-source watcher and a quick lid check.
+  let power: { stop(): void } | null = null
+  let lidTimer: ReturnType<typeof setInterval> | null = null
+  let lid: boolean | null = null
+  // Whether a monitor is attached, checked once per lid close (system_profiler is slow).
+  let external: boolean | null = null
   const disposables: { dispose(): void }[] = []
 
-  async function readSettings(): Promise<{ settings: Settings; pollSeconds: number; cliPath: string }> {
+  async function readSettings(): Promise<{
+    settings: Settings
+    pollSeconds: number
+    cliPath: string
+  }> {
     const raw = (await orca!.settings.get()) as Record<string, unknown>
     const poll = Number(raw.pollSeconds)
-    const cli = typeof raw.orcaCliPath === 'string' && raw.orcaCliPath.startsWith('/') ? raw.orcaCliPath : DEFAULT_CLI
+    const cli =
+      typeof raw.orcaCliPath === 'string' && raw.orcaCliPath.startsWith('/')
+        ? raw.orcaCliPath
+        : DEFAULT_CLI
     return {
       settings: clampSettings(raw),
       pollSeconds: Number.isFinite(poll) ? Math.min(600, Math.max(15, Math.round(poll))) : 60,
@@ -47,7 +71,12 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
     }
   }
 
-  async function show(status: { text: string; tone: string; icon: string; tooltip: string }): Promise<void> {
+  async function show(status: {
+    text: string
+    tone: string
+    icon: string
+    tooltip: string
+  }): Promise<void> {
     const line = `status: ${status.text} | ${status.tooltip}`
     if (line !== lastLogged) {
       lastLogged = line
@@ -66,7 +95,28 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
     }
   }
 
+  function watch(on: boolean): void {
+    if (on && !stopped) {
+      // Unplugging must not wait for the next poll: a closed Mac on battery should sleep now.
+      power ??= system.watchPower(() => void tick())
+      if (!lidTimer) {
+        lidTimer = setInterval(async () => {
+          if (running) return
+          const now = await system.lidClosed().catch(() => null)
+          if (now !== null && lid !== null && now !== lid) void tick()
+        }, lidCheckMs)
+        unref(lidTimer)
+      }
+    } else {
+      power?.stop()
+      power = null
+      if (lidTimer) clearInterval(lidTimer)
+      lidTimer = null
+    }
+  }
+
   async function restore(): Promise<void> {
+    watch(false)
     system.stopWatchdog()
     try {
       await system.setSleepDisabled(false)
@@ -81,7 +131,12 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
   async function tickOnce(): Promise<Decision | null> {
     if (!orca || stopped) return null
     if (!system.supported) {
-      await show({ text: 'macOS only', tone: 'warning', icon: 'warning', tooltip: 'Orcaffein works only on macOS.' })
+      await show({
+        text: 'macOS only',
+        tone: 'warning',
+        icon: 'warning',
+        tooltip: 'Orcaffein works only on macOS.'
+      })
       return null
     }
     try {
@@ -102,6 +157,8 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
         orca.storage.get(LAST_ACTIVE),
         orca.storage.get(PAUSED)
       ])
+      lid = lidClosed
+      if (lidClosed !== true) external = null
       const inputs = {
         working,
         onAC,
@@ -120,6 +177,7 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
       await apply(decision)
       // apply() may have just found the sudoers drop-in missing (or present).
       last = setupOk === inputs.setupOk ? decision : decide({ ...inputs, setupOk })
+      watch(last.want === 'awake' && setupOk)
       await show(last.status)
       return last
     } catch (error) {
@@ -148,6 +206,11 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
         }
       }
       system.startWatchdog()
+      // With sleep disabled the built-in screen stays lit under a closed lid.
+      if (decision.displayOff) {
+        if (external === null) external = await system.externalDisplay()
+        if (!external) await system.displaySleepNow()
+      }
       return
     }
     if (decision.apply === 'set-normal') await restore()
@@ -160,7 +223,6 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
       }
     }
   }
-
 
   function tick(): Promise<Decision | null> {
     if (running) {
@@ -187,7 +249,7 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
     unref(pollTimer)
   }
 
-  function soon(delay = EVENT_DEBOUNCE_MS): void {
+  function soon(delay = eventDebounceMs): void {
     if (pendingTimer || stopped) return
     pendingTimer = setTimeout(() => {
       pendingTimer = null
@@ -229,7 +291,9 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
           setupOk = result === 'installed' && (await system.sudoReady())
           await tick()
           if (setupOk) return 'Orcaffein is set up.'
-          return result === 'cancelled' ? 'Setup cancelled.' : 'Setup failed. See github.com/canhta/orcaffein#install'
+          return result === 'cancelled'
+            ? 'Setup cancelled.'
+            : 'Setup failed. See github.com/canhta/orcaffein#install'
         }
         const paused = (await api.storage.get(PAUSED)) === true
         await api.storage.set(PAUSED, !paused)
@@ -239,8 +303,10 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
       api.commands.register('check-setup', () => checkSetup())
       disposables.push(
         api.events.on('agent.status.changed', async (event) => {
-          if (event.state === 'working') await api.storage.set(LAST_ACTIVE, now())
-          soon()
+          // Only a start matters right away; stops are handled by the idle timer and the poll.
+          if (event.state !== 'working') return
+          await api.storage.set(LAST_ACTIVE, now())
+          if (last?.want !== 'awake') soon()
         }),
         api.settings.onDidChange(() => soon(0))
       )
@@ -263,9 +329,13 @@ export function createWorker({ system, now = Date.now, startDelayMs = START_DELA
       if (pendingTimer) clearTimeout(pendingTimer)
       pollTimer = pendingTimer = null
       for (const d of disposables.splice(0)) d.dispose()
+      watch(false)
+      // Orca allows 2 s to stop: don't wait on a slow `orca agent list`.
+      system.cancelQueries()
       await running?.catch(() => null)
       // Skip sudo when sleep is already normal (keeps the log clean without the drop-in).
-      if (system.supported && (await system.sleepDisabled().catch(() => null)) !== false) await restore()
+      if (system.supported && (await system.sleepDisabled().catch(() => null)) !== false)
+        await restore()
       else system.stopWatchdog()
       orca = null
     },

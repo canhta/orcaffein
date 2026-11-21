@@ -3,25 +3,54 @@
   "manifestVersion": 2,
   "id": "orcaffein",
   "name": "Orcaffein",
-  "version": "0.1.0",
-  "description": "Keeps a Mac awake with the lid closed while Orca agents are working, then gives sleep back once they stop or the Mac goes on battery. macOS only.",
-  "author": { "name": "canhta", "url": "https://github.com/canhta" },
+  "version": "0.1.1",
+  "description": "Keeps your MacBook awake with the lid closed while Orca agents work. macOS only.",
+  "author": {
+    "name": "canhta",
+    "url": "https://github.com/canhta"
+  },
   "repository": "https://github.com/canhta/orcaffein",
   "homepage": "https://github.com/canhta/orcaffein",
   "license": "MIT",
-  "engines": { "orca": ">=1.4.248" },
+  "icon": "assets/icon.png",
+  "cover": {
+    "path": "assets/cover.png",
+    "alt": "Orcaffein: an Orca window with three agents working and the status bar showing Awake 3, while the lid is closed and the Mac is on charger"
+  },
+  "screenshots": [
+    {
+      "path": "assets/states.png",
+      "alt": "The five status bar states: Awake 3, Idle 12/60m, Sleep, Paused and Setup, each with what it means",
+      "caption": "What the status bar tells you"
+    }
+  ],
+  "engines": {
+    "orca": ">=1.4.248"
+  },
   "execution": "trusted-worker",
   "pluginApi": 1,
   "main": "src/worker.ts",
   "capabilities": [
-    { "kind": "settings:own" },
-    { "kind": "storage:own" },
-    { "kind": "agent:read" }
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "agent:read"
+    }
   ],
   "contributes": {
     "commands": [
-      { "id": "toggle-pause", "title": "Orcaffein: Pause or resume" },
-      { "id": "check-setup", "title": "Orcaffein: Check setup" }
+      {
+        "id": "toggle-pause",
+        "title": "Orcaffein: Pause or resume"
+      },
+      {
+        "id": "check-setup",
+        "title": "Orcaffein: Check setup"
+      }
     ],
     "statusBarItems": [
       {
@@ -29,16 +58,20 @@
         "text": "Orcaffein",
         "icon": "zap",
         "tone": "neutral",
-        "tooltip": "Orcaffein: starting. Press to pause or resume.",
+        "tooltip": "Starting",
         "command": "toggle-pause"
       }
     ],
-    "events": [{ "on": "agent.status.changed" }],
+    "events": [
+      {
+        "on": "agent.status.changed"
+      }
+    ],
     "settings": [
       {
         "key": "mode",
         "title": "Mode",
-        "description": "Agent: keep the Mac awake (lid closed too) while an Orca agent works, then for the idle time below. On: keep it awake whenever it runs on AC power. Off: never touch sleep. Same choices as Orca's own \"Keep computer awake\", which cannot hold a closed lid.",
+        "description": "Agent: awake while agents work. On: awake whenever on power. Off: do nothing.",
         "type": "string",
         "default": "agent",
         "enum": ["agent", "on", "off"],
@@ -46,8 +79,8 @@
       },
       {
         "key": "idleMinutes",
-        "title": "Idle minutes before sleep returns",
-        "description": "After the last agent stops working, stay awake this long. If the lid is closed when it runs out, the Mac sleeps at once.",
+        "title": "Idle minutes",
+        "description": "How long to stay awake after the last agent stops.",
         "type": "integer",
         "default": 60,
         "minimum": 1,
@@ -56,7 +89,7 @@
       {
         "key": "pollSeconds",
         "title": "Poll interval (seconds)",
-        "description": "How often to recount working agents and check power and lid state.",
+        "description": "How often to check agents, power and the lid.",
         "type": "integer",
         "default": 60,
         "minimum": 15,
@@ -65,14 +98,14 @@
       {
         "key": "allowOnBattery",
         "title": "Allow on battery",
-        "description": "Keep the Mac awake on battery too. Off (the default) gives sleep back as soon as the Mac is unplugged.",
+        "description": "Stay awake when unplugged.",
         "type": "boolean",
         "default": false
       },
       {
         "key": "orcaCliPath",
         "title": "Orca CLI path",
-        "description": "Absolute path of the orca command used to count working agents across all workspaces.",
+        "description": "Used to count working agents.",
         "type": "string",
         "default": "/Applications/Orca.app/Contents/Resources/bin/orca",
         "maxLength": 1024

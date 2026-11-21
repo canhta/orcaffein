@@ -49,6 +49,8 @@ export type Decision = {
   want: 'awake' | 'normal'
   /** Run `pmset sleepnow` after restoring sleep (lid closed and we were holding it awake). */
   sleepNow: boolean
+  /** Lid closed while kept awake: turn the built-in display off, or it stays lit under the lid. */
+  displayOff: boolean
   /** Only set `disablesleep` when the current value differs (or is unknown). */
   apply: 'set-awake' | 'set-normal' | 'none'
   lastActive: number | null
@@ -116,9 +118,12 @@ export function decide(input: Inputs): Decision {
   // only when we were holding it awake and know the lid is closed.
   const sleepNow = want === 'normal' && input.sleepDisabled === true && input.lidClosed === true
 
+  const displayOff = want === 'awake' && input.lidClosed === true
+
   return {
     want,
     sleepNow,
+    displayOff,
     apply,
     lastActive,
     reason,
@@ -143,19 +148,44 @@ function statusFor(
 }
 
 // Status bar text stays a word or two; the tooltip carries the detail.
-function baseStatus(input: Inputs, reason: Reason, working: number, lastActive: number | null): Status {
+function baseStatus(
+  input: Inputs,
+  reason: Reason,
+  working: number,
+  lastActive: number | null
+): Status {
   const unknownAgents =
     input.working === null && reason !== 'paused' && reason !== 'off' && reason !== 'battery'
   const cli = unknownAgents ? ' Could not count agents: check the Orca CLI path setting.' : ''
   switch (reason) {
     case 'paused':
-      return { text: 'Paused', tone: 'neutral', icon: 'pause', tooltip: 'Paused, sleep is normal. Click to resume.' }
+      return {
+        text: 'Paused',
+        tone: 'neutral',
+        icon: 'pause',
+        tooltip: 'Paused, sleep is normal. Click to resume.'
+      }
     case 'off':
-      return { text: 'Sleep', tone: 'neutral', icon: 'check', tooltip: 'Mode is Off, sleep is normal.' }
+      return {
+        text: 'Sleep',
+        tone: 'neutral',
+        icon: 'check',
+        tooltip: 'Mode is Off, sleep is normal.'
+      }
     case 'battery':
-      return { text: 'Sleep', tone: 'neutral', icon: 'check', tooltip: 'On battery, sleep is normal.' }
+      return {
+        text: 'Sleep',
+        tone: 'neutral',
+        icon: 'check',
+        tooltip: 'On battery, sleep is normal.'
+      }
     case 'always':
-      return { text: 'Awake', tone: 'success', icon: 'zap', tooltip: 'Mode is On: awake on AC, lid closed too. Click to pause.' }
+      return {
+        text: 'Awake',
+        tone: 'success',
+        icon: 'zap',
+        tooltip: 'Mode is On: awake on AC, lid closed too. Click to pause.'
+      }
     case 'working':
       return {
         text: `Awake ${working}`,

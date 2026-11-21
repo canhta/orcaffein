@@ -76,7 +76,9 @@ test('unknown power counts as battery', () => {
 })
 
 test('allowOnBattery keeps it awake on battery', () => {
-  const d = decide(input({ working: 1, onAC: false, settings: { ...DEFAULT_SETTINGS, allowOnBattery: true } }))
+  const d = decide(
+    input({ working: 1, onAC: false, settings: { ...DEFAULT_SETTINGS, allowOnBattery: true } })
+  )
   assert.equal(d.want, 'awake')
 })
 

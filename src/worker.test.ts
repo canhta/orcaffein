@@ -12,10 +12,21 @@ type State = {
   disabled: boolean
   sudo: boolean
   installResult: 'installed' | 'cancelled' | 'failed'
+  external: boolean
 }
 
 function fakeSystem(initial: Partial<State> = {}) {
-  const state: State = { working: 0, onAC: true, lid: false, disabled: false, sudo: true, installResult: 'installed', ...initial }
+  const fake = { powerChanged: null as null | (() => void), cancelled: 0 }
+  const state: State = {
+    working: 0,
+    onAC: true,
+    lid: false,
+    disabled: false,
+    sudo: true,
+    installResult: 'installed',
+    external: false,
+    ...initial
+  }
   const calls: string[] = []
   const system: System = {
     supported: true,
@@ -40,6 +51,25 @@ function fakeSystem(initial: Partial<State> = {}) {
     async sleepNow() {
       calls.push('sleepnow')
     },
+    async externalDisplay() {
+      return state.external
+    },
+    async displaySleepNow() {
+      calls.push('display off')
+    },
+    watchPower(onChange) {
+      calls.push('power watch')
+      fake.powerChanged = onChange
+      return {
+        stop() {
+          calls.push('power unwatch')
+          fake.powerChanged = null
+        }
+      }
+    },
+    cancelQueries() {
+      fake.cancelled++
+    },
     async sudoReady() {
       return state.sudo
     },
@@ -55,12 +85,23 @@ function fakeSystem(initial: Partial<State> = {}) {
       calls.push('watchdog stop')
     }
   }
-  return { state, calls, system }
+  return { state, calls, system, fake }
 }
 
-async function setup(opts: { state?: Partial<State>; storage?: Record<string, never | number | boolean>; settings?: Record<string, never | number | boolean | string>; now?: () => number } = {}) {
+async function setup(
+  opts: {
+    state?: Partial<State>
+    storage?: Record<string, never | number | boolean>
+    settings?: Record<string, never | number | boolean | string>
+    now?: () => number
+  } = {}
+) {
   const fake = fakeSystem(opts.state)
-  const w = createWorker({ system: fake.system, now: opts.now ?? (() => NOW), startDelayMs: 60 * MIN })
+  const w = createWorker({
+    system: fake.system,
+    now: opts.now ?? (() => NOW),
+    startDelayMs: 60 * MIN
+  })
   const host = mockHost({ storage: opts.storage ?? {}, settings: opts.settings ?? {} })
   const worker = await mountWorker({ default: w.activate, deactivate: w.deactivate }, { host })
   return { ...fake, w, worker, host }
@@ -76,7 +117,7 @@ test('working agents: disable sleep, start watchdog, persist lastActive', async 
   const d = await w.tick()
   assert.equal(d?.want, 'awake')
   assert.equal(state.disabled, true)
-  assert.deepEqual(calls, ['disablesleep 1', 'watchdog start'])
+  assert.deepEqual(calls, ['disablesleep 1', 'watchdog start', 'power watch'])
   assert.equal(host.data().storage.lastActive, NOW)
   assert.equal(lastStatus(host).text, 'Awake 2')
   assert.deepEqual(worker.refusals, [])
@@ -106,7 +147,9 @@ test('idle expired with lid closed: restore then sleepnow', async () => {
 })
 
 test('on battery: restore at once', async () => {
-  const { w, worker, state, host } = await setup({ state: { working: 3, disabled: true, onAC: false } })
+  const { w, worker, state, host } = await setup({
+    state: { working: 3, disabled: true, onAC: false }
+  })
   await w.tick()
   assert.equal(state.disabled, false)
   assert.equal(lastStatus(host).text, 'Sleep')
@@ -123,7 +166,9 @@ test('missing sudoers: setup needed, never throws', async () => {
 })
 
 test('CLI failure does not hold the Mac awake', async () => {
-  const { w, worker, host, state } = await setup({ state: { working: new Error('no orca'), disabled: true } })
+  const { w, worker, host, state } = await setup({
+    state: { working: new Error('no orca'), disabled: true }
+  })
   await w.tick()
   assert.equal(state.disabled, false)
   assert.equal(lastStatus(host).text, 'Agents ?')
@@ -183,9 +228,129 @@ test('clicking Setup installs the drop-in, then keeps the Mac awake', async () =
 })
 
 test('cancelling Setup leaves things as they were', async () => {
-  const { w, worker, host } = await setup({ state: { working: 1, sudo: false, installResult: 'cancelled' } })
+  const { w, worker, host } = await setup({
+    state: { working: 1, sudo: false, installResult: 'cancelled' }
+  })
   await w.tick()
   assert.equal(await worker.command('toggle-pause'), 'Setup cancelled.')
   assert.equal(lastStatus(host).text, 'Setup')
   await worker.deactivate()
+})
+
+test('agent events trigger a recount only when not already awake', async () => {
+  const fake = fakeSystem({ working: 1 })
+  let counts = 0
+  const count = fake.system.workingAgents
+  fake.system.workingAgents = (cli) => {
+    counts++
+    return count(cli)
+  }
+  const w = createWorker({
+    system: fake.system,
+    now: () => NOW,
+    startDelayMs: 60 * MIN,
+    eventDebounceMs: 5
+  })
+  const worker = await mountWorker(
+    { default: w.activate, deactivate: w.deactivate },
+    { host: mockHost({}) }
+  )
+  const event = (state: 'working' | 'waiting') =>
+    worker.emit('agent.status.changed', { workspaceId: null, paneKey: 'p', state, receivedAt: NOW })
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 50))
+
+  await event('working')
+  await settle()
+  assert.equal(counts, 1, 'not awake yet: recount')
+  await event('working')
+  await event('waiting')
+  await settle()
+  assert.equal(counts, 1, 'already awake: no recount')
+  await worker.deactivate()
+})
+
+test('lid closed while awake: built-in display is turned off', async () => {
+  const { w, worker, calls } = await setup({ state: { working: 1, lid: true } })
+  await w.tick()
+  assert.deepEqual(calls, ['disablesleep 1', 'watchdog start', 'display off', 'power watch'])
+  await worker.deactivate()
+})
+
+test('lid closed with an external monitor: display left alone', async () => {
+  const { w, worker, calls } = await setup({ state: { working: 1, lid: true, external: true } })
+  await w.tick()
+  assert.ok(!calls.includes('display off'))
+  await worker.deactivate()
+})
+
+test('lid open: display left alone', async () => {
+  const { w, worker, calls } = await setup({ state: { working: 1 } })
+  await w.tick()
+  assert.ok(!calls.includes('display off'))
+  await worker.deactivate()
+})
+
+test('unplugging while awake rechecks at once and gives sleep back', async () => {
+  const { w, worker, state, fake, calls } = await setup({ state: { working: 2, lid: true } })
+  await w.tick()
+  assert.equal(state.disabled, true)
+  state.onAC = false
+  fake.powerChanged?.()
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  assert.equal(state.disabled, false)
+  assert.ok(calls.includes('sleepnow'), 'lid closed: sleeps now')
+  assert.ok(calls.includes('power unwatch'), 'watcher stops once sleep is normal')
+  await worker.deactivate()
+})
+
+test('closing the lid turns the screen off before the next poll', async () => {
+  const fakeSys = fakeSystem({ working: 1 })
+  const w = createWorker({
+    system: fakeSys.system,
+    now: () => NOW,
+    startDelayMs: 60 * MIN,
+    lidCheckMs: 5
+  })
+  const worker = await mountWorker(
+    { default: w.activate, deactivate: w.deactivate },
+    { host: mockHost({}) }
+  )
+  await w.tick()
+  assert.ok(!fakeSys.calls.includes('display off'))
+  fakeSys.state.lid = true
+  await new Promise((resolve) => setTimeout(resolve, 60))
+  assert.ok(fakeSys.calls.includes('display off'))
+  await worker.deactivate()
+})
+
+test('the external display check runs once per lid close', async () => {
+  const fakeSys = fakeSystem({ working: 1, lid: true })
+  let checks = 0
+  const check = fakeSys.system.externalDisplay
+  fakeSys.system.externalDisplay = () => {
+    checks++
+    return check()
+  }
+  const w = createWorker({ system: fakeSys.system, now: () => NOW, startDelayMs: 60 * MIN })
+  const worker = await mountWorker(
+    { default: w.activate, deactivate: w.deactivate },
+    { host: mockHost({}) }
+  )
+  await w.tick()
+  await w.tick()
+  assert.equal(checks, 1)
+  fakeSys.state.lid = false
+  await w.tick()
+  fakeSys.state.lid = true
+  await w.tick()
+  assert.equal(checks, 2)
+  await worker.deactivate()
+})
+
+test('deactivate cancels running queries and stops the watchers', async () => {
+  const { w, worker, fake, calls } = await setup({ state: { working: 1 } })
+  await w.tick()
+  await worker.deactivate()
+  assert.equal(fake.cancelled, 1)
+  assert.ok(calls.includes('power unwatch'))
 })
