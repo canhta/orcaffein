@@ -1,0 +1,82 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "id": "orcaffein",
+  "name": "Orcaffein",
+  "version": "0.1.0",
+  "description": "Keeps a Mac awake with the lid closed while Orca agents are working, then gives sleep back once they stop or the Mac goes on battery. macOS only.",
+  "author": { "name": "canhta", "url": "https://github.com/canhta" },
+  "repository": "https://github.com/canhta/orcaffein",
+  "homepage": "https://github.com/canhta/orcaffein",
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.248" },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "capabilities": [
+    { "kind": "settings:own" },
+    { "kind": "storage:own" },
+    { "kind": "agent:read" }
+  ],
+  "contributes": {
+    "commands": [
+      { "id": "toggle-pause", "title": "Orcaffein: Pause or resume" },
+      { "id": "check-setup", "title": "Orcaffein: Check setup" }
+    ],
+    "statusBarItems": [
+      {
+        "id": "state",
+        "text": "Orcaffein",
+        "icon": "zap",
+        "tone": "neutral",
+        "tooltip": "Orcaffein: starting. Press to pause or resume.",
+        "command": "toggle-pause"
+      }
+    ],
+    "events": [{ "on": "agent.status.changed" }],
+    "settings": [
+      {
+        "key": "mode",
+        "title": "Mode",
+        "description": "Agent: keep the Mac awake (lid closed too) while an Orca agent works, then for the idle time below. On: keep it awake whenever it runs on AC power. Off: never touch sleep. Same choices as Orca's own \"Keep computer awake\", which cannot hold a closed lid.",
+        "type": "string",
+        "default": "agent",
+        "enum": ["agent", "on", "off"],
+        "enumLabels": ["Agent", "On", "Off"]
+      },
+      {
+        "key": "idleMinutes",
+        "title": "Idle minutes before sleep returns",
+        "description": "After the last agent stops working, stay awake this long. If the lid is closed when it runs out, the Mac sleeps at once.",
+        "type": "integer",
+        "default": 60,
+        "minimum": 1,
+        "maximum": 1440
+      },
+      {
+        "key": "pollSeconds",
+        "title": "Poll interval (seconds)",
+        "description": "How often to recount working agents and check power and lid state.",
+        "type": "integer",
+        "default": 60,
+        "minimum": 15,
+        "maximum": 600
+      },
+      {
+        "key": "allowOnBattery",
+        "title": "Allow on battery",
+        "description": "Keep the Mac awake on battery too. Off (the default) gives sleep back as soon as the Mac is unplugged.",
+        "type": "boolean",
+        "default": false
+      },
+      {
+        "key": "orcaCliPath",
+        "title": "Orca CLI path",
+        "description": "Absolute path of the orca command used to count working agents across all workspaces.",
+        "type": "string",
+        "default": "/Applications/Orca.app/Contents/Resources/bin/orca",
+        "maxLength": 1024
+      }
+    ]
+  }
+}
